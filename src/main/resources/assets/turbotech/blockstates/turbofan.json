@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "turbotech:block/turbofan_base"
+    },
+    "facing=south": {
+      "model": "turbotech:block/turbofan_base",
+      "y": 180
+    },
+    "facing=east": {
+      "model": "turbotech:block/turbofan_base",
+      "y": 90
+    },
+    "facing=west": {
+      "model": "turbotech:block/turbofan_base",
+      "y": 270
+    }
+  }
+}

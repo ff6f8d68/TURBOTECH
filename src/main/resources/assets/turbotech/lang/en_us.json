@@ -1,0 +1,9 @@
+{
+  "itemGroup.turbotech_tab": "TURBOTECH",
+  "block.turbotech.example_block": "Example Block",
+  "item.turbotech.example_item": "Example Item",
+  "block.turbotech.turbofan": "Turbofan",
+  "block.turbotech.ion_thruster": "Ion Thruster",
+  "block.turbotech.shield_generator": "Shield Generator",
+  "block.turbotech.raptor3": "spaceX raptor III engine"
+}

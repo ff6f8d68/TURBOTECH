@@ -1,0 +1,4 @@
+newmtl Shield_generator
+map_Kd turbotech:block/shield_generator
+map_Ke turbotech:block/shield_generator_emmisive
+

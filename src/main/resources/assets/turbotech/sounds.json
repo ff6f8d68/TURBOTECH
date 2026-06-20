@@ -1,0 +1,39 @@
+{
+  "jet_start": {
+    "sounds": [
+      "turbotech:jet_start"
+    ]
+  },
+  "jet_loop": {
+    "sounds": [
+      "turbotech:jet_loop"
+    ],
+    "stream": true
+  },
+  "jet_stop": {
+    "sounds": [
+      "turbotech:jet_stop"
+    ]
+  },
+  "shield_bootup": {
+    "sounds": [
+      "turbotech:shield_bootup"
+    ]
+  },
+  "shield_shutdown": {
+    "sounds": [
+      "turbotech:shield_shutdown"
+    ]
+  },
+  "shield_ambient": {
+    "sounds": [
+      "turbotech:shield_ambient"
+    ],
+    "stream": true
+  },
+  "shield_hit": {
+    "sounds": [
+      "turbotech:shield_hit"
+    ]
+  }
+}

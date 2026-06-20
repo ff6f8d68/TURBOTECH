@@ -1,0 +1,9 @@
+{
+  "loader": "neoforge:obj",
+  "model": "turbotech:models/block/turbofan.obj",
+  "flip-v": false,
+  "automatic_culling": true,
+  "shade_quads": true,
+  "ambient-occlusion": false,
+  "render_type": "solid"
+}

@@ -1,0 +1,6 @@
+{
+  "loader": "neoforge:obj",
+  "model": "turbotech:models/block/shield_generator.obj",
+  "flip_v": true,
+  "automatic_culling": false
+}

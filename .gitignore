@@ -1,0 +1,23 @@
+# --- IDE and Environment ---
+.gradle/
+.idea/
+.proxyai/
+build/
+bin/
+out/
+gradlew
+gradlew.bat
+gradle/wrapper/gradle-wrapper.jar
+
+# --- Minecraft Run Environment ---
+run/
+
+.vscode/
+
+# --- Compiled Java ---
+*.class
+libs/
+
+# --- Temporary/Backup Files ---
+*.bak
+*.tmp

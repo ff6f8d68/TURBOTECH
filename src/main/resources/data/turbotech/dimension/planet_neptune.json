@@ -1,0 +1,12 @@
+{
+  "type": "turbotech:planet_type",
+  "generator": {
+    "type": "minecraft:flat",
+    "settings": {
+      "layers": [
+        { "height": 1, "block": "minecraft:air" }
+      ],
+      "biome": "minecraft:the_void"
+    }
+  }
+}

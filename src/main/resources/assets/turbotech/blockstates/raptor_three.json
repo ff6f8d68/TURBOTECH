@@ -1,0 +1,30 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "turbotech:block/raptor_three",
+      "x": 90
+    },
+    "facing=south": {
+      "model": "turbotech:block/raptor_three",
+      "x": 90,
+      "y": 180
+    },
+    "facing=east": {
+      "model": "turbotech:block/raptor_three",
+      "x": 90,
+      "y": 90
+    },
+    "facing=west": {
+      "model": "turbotech:block/raptor_three",
+      "x": 90,
+      "y": 270
+    },
+    "facing=up": {
+      "model": "turbotech:block/raptor_three",
+      "x": 180
+    },
+    "facing=down": {
+      "model": "turbotech:block/raptor_three"
+    }
+  }
+}

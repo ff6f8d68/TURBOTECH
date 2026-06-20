@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "turbotech:block/shield_generator_invisible"
+    }
+  }
+}
