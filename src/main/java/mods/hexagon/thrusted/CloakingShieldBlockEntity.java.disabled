@@ -1,0 +1,328 @@
+package mods.hexagon.thrusted;
+
+import dev.ryanhcode.sable.api.block.BlockEntitySubLevelActor;
+import dev.ryanhcode.sable.api.physics.handle.RigidBodyHandle;
+import dev.ryanhcode.sable.sublevel.ServerSubLevel;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.HashSet;
+import java.util.Set;
+
+public class CloakingShieldBlockEntity extends BlockEntity implements BlockEntitySubLevelActor {
+    private static final double BASE_RADIUS = 15.0;
+    private static final double PADDING = 3.0;
+
+    private boolean active = false;
+    private float cloakAlpha = 0.0f;
+    private float bootupProgress = 0.0f;
+    private int redstoneSignal = 0;
+
+    private double shieldCenterX, shieldCenterY, shieldCenterZ;
+    private double radiusX, radiusY, radiusZ;
+
+    // Multiblock
+    private int multiblockSize = 1;
+    private boolean isController = true;
+    private BlockPos controllerPos = null;
+
+    // Sable ship tracking
+    private Level worldLevel = null;
+    private boolean onShip = false;
+
+    public CloakingShieldBlockEntity(BlockPos pos, BlockState state) {
+        super((BlockEntityType<?>) null, pos, state); // CLOAKING SHIELD DISABLED
+        this.controllerPos = pos;
+        this.shieldCenterX = pos.getX() + 0.5;
+        this.shieldCenterY = pos.getY() + 0.5;
+        this.shieldCenterZ = pos.getZ() + 0.5;
+        this.radiusX = BASE_RADIUS;
+        this.radiusY = BASE_RADIUS;
+        this.radiusZ = BASE_RADIUS;
+    }
+
+    // --- Getters ---
+    public boolean isActive() { return active; }
+    public float getCloakAlpha() { return cloakAlpha; }
+    public float getBootupProgress() { return bootupProgress; }
+    public int getMultiblockSize() { return multiblockSize; }
+    public boolean isController() { return isController; }
+    public BlockPos getControllerPos() { return isController ? worldPosition : controllerPos; }
+    public double getRadiusX() { return radiusX; }
+    public double getRadiusY() { return radiusY; }
+    public double getRadiusZ() { return radiusZ; }
+    public double getShieldCenterX() { return shieldCenterX; }
+    public double getShieldCenterY() { return shieldCenterY; }
+    public double getShieldCenterZ() { return shieldCenterZ; }
+
+    public int getSubdivLevel() {
+        return ThrustedIcosphere.getSubdivisionForRadius(radiusX, radiusY, radiusZ);
+    }
+
+    public CloakingShieldBlockEntity getController() {
+        if (isController) return this;
+        if (level == null || controllerPos == null) return null;
+        if (level.getBlockEntity(controllerPos) instanceof CloakingShieldBlockEntity be && be.isController()) return be;
+        return null;
+    }
+
+    public AABB getRenderBoundingBox() {
+        double maxR = Math.max(radiusX, Math.max(radiusY, radiusZ));
+        return new AABB(worldPosition).inflate(maxR + 4);
+    }
+
+    public boolean isPositionInsideShield(Vec3 pos, double margin) {
+        double dx = (pos.x - shieldCenterX) / (radiusX + margin);
+        double dy = (pos.y - shieldCenterY) / (radiusY + margin);
+        double dz = (pos.z - shieldCenterZ) / (radiusZ + margin);
+        return (dx * dx + dy * dy + dz * dz) <= 1.0;
+    }
+
+    // --- Sable integration: dynamic scaling to ship size ---
+    @Override
+    public void sable$physicsTick(ServerSubLevel subLevel, RigidBodyHandle body, double dt) {
+        this.worldLevel = subLevel.getLevel();
+        this.onShip = true;
+        var bb = subLevel.getPlot().getBoundingBox();
+        if (bb != null) {
+            shieldCenterX = (bb.minX() + bb.maxX()) / 2.0;
+            shieldCenterY = (bb.minY() + bb.maxY()) / 2.0;
+            shieldCenterZ = (bb.minZ() + bb.maxZ()) / 2.0;
+            double multiblockBoost = 1 << (multiblockSize - 1);
+            double minR = BASE_RADIUS * multiblockBoost;
+            radiusX = Math.max((bb.maxX() - bb.minX()) / 2.0 + PADDING, minR);
+            radiusY = Math.max((bb.maxY() - bb.minY()) / 2.0 + PADDING, minR);
+            radiusZ = Math.max((bb.maxZ() - bb.minZ()) / 2.0 + PADDING, minR);
+            markAndSync();
+        }
+    }
+
+    private void markAndSync() {
+        setChanged();
+        if (level != null) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    // --- NBT ---
+    @Override
+    protected void saveAdditional(@NotNull CompoundTag tag, @NotNull HolderLookup.Provider registries) {
+        super.saveAdditional(tag, registries);
+        tag.putBoolean("Active", active);
+        tag.putFloat("CloakAlpha", cloakAlpha);
+        tag.putFloat("Bootup", bootupProgress);
+        tag.putInt("Signal", redstoneSignal);
+        tag.putInt("MB", multiblockSize);
+        tag.putBoolean("MBC", isController);
+        tag.putDouble("RX", radiusX);
+        tag.putDouble("RY", radiusY);
+        tag.putDouble("RZ", radiusZ);
+        tag.putDouble("CX", shieldCenterX);
+        tag.putDouble("CY", shieldCenterY);
+        tag.putDouble("CZ", shieldCenterZ);
+        if (controllerPos != null) {
+            tag.putInt("CPX", controllerPos.getX());
+            tag.putInt("CPY", controllerPos.getY());
+            tag.putInt("CPZ", controllerPos.getZ());
+        }
+    }
+
+    @Override
+    protected void loadAdditional(@NotNull CompoundTag tag, @NotNull HolderLookup.Provider registries) {
+        super.loadAdditional(tag, registries);
+        this.active = tag.getBoolean("Active");
+        this.cloakAlpha = tag.getFloat("CloakAlpha");
+        this.bootupProgress = tag.getFloat("Bootup");
+        this.redstoneSignal = tag.getInt("Signal");
+        if (tag.contains("MB")) this.multiblockSize = tag.getInt("MB");
+        if (tag.contains("MBC")) this.isController = tag.getBoolean("MBC");
+        if (tag.contains("RX")) this.radiusX = tag.getDouble("RX");
+        if (tag.contains("RY")) this.radiusY = tag.getDouble("RY");
+        if (tag.contains("RZ")) this.radiusZ = tag.getDouble("RZ");
+        if (tag.contains("CX")) this.shieldCenterX = tag.getDouble("CX");
+        if (tag.contains("CY")) this.shieldCenterY = tag.getDouble("CY");
+        if (tag.contains("CZ")) this.shieldCenterZ = tag.getDouble("CZ");
+        if (tag.contains("CPX") && tag.contains("CPY") && tag.contains("CPZ")) {
+            this.controllerPos = new BlockPos(tag.getInt("CPX"), tag.getInt("CPY"), tag.getInt("CPZ"));
+        }
+    }
+
+    @Override
+    public @NotNull CompoundTag getUpdateTag(@NotNull HolderLookup.Provider registries) {
+        CompoundTag tag = super.getUpdateTag(registries);
+        saveAdditional(tag, registries);
+        return tag;
+    }
+
+    @Nullable
+    @Override
+    public Packet<ClientGamePacketListener> getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
+    }
+
+    // --- Tick ---
+    public void tick(Level level, BlockPos pos, BlockState state) {
+        if (level.isClientSide) {
+            clientTick();
+        } else {
+            serverTick(level, pos);
+        }
+    }
+
+    private void serverTick(Level level, BlockPos pos) {
+        if (!isController) return;
+
+        int signal = 0;
+        BlockPos ctrlPos = controllerPos != null ? controllerPos : pos;
+        for (int dx = 0; dx < multiblockSize; dx++) {
+            for (int dy = 0; dy < multiblockSize; dy++) {
+                for (int dz = 0; dz < multiblockSize; dz++) {
+                    signal = Math.max(signal, level.getBestNeighborSignal(ctrlPos.offset(dx, dy, dz)));
+                }
+            }
+        }
+        this.redstoneSignal = signal;
+
+        boolean wasActive = this.active;
+        if (signal <= 0) {
+            this.active = false;
+            this.bootupProgress = Math.max(this.bootupProgress - 0.02f, 0.0f);
+        } else {
+            this.active = true;
+            this.bootupProgress = Math.min(this.bootupProgress + 0.02f, 1.0f);
+        }
+
+        // If not on ship, use static position/radius
+        if (!onShip) {
+            BlockPos ctrl = controllerPos != null ? controllerPos : pos;
+            shieldCenterX = ctrl.getX() + multiblockSize / 2.0;
+            shieldCenterY = ctrl.getY() + multiblockSize / 2.0;
+            shieldCenterZ = ctrl.getZ() + multiblockSize / 2.0;
+            double multiblockBoost = 1 << (multiblockSize - 1);
+            double r = BASE_RADIUS * multiblockBoost;
+            radiusX = r;
+            radiusY = r;
+            radiusZ = r;
+        }
+
+        boolean changed = wasActive != this.active;
+        if (changed) {
+            setChanged();
+            level.sendBlockUpdated(pos, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    private void clientTick() {
+        if (this.active) {
+            this.bootupProgress = Math.min(this.bootupProgress + 0.02f, 1.0f);
+            this.cloakAlpha = Math.min(this.cloakAlpha + 0.02f, 1.0f);
+        } else {
+            this.bootupProgress = Math.max(this.bootupProgress - 0.02f, 0.0f);
+            this.cloakAlpha = Math.max(this.cloakAlpha - 0.02f, 0.0f);
+        }
+    }
+
+    // --- Multiblock ---
+    public static void detectMultiblock(Level level, BlockPos pos) {
+        if (level.isClientSide) return;
+        Set<BlockPos> connected = new HashSet<>();
+        java.util.ArrayDeque<BlockPos> queue = new java.util.ArrayDeque<>();
+        queue.add(pos);
+        connected.add(pos);
+        while (!queue.isEmpty()) {
+            BlockPos cur = queue.poll();
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        if (dx == 0 && dy == 0 && dz == 0) continue;
+                        BlockPos np = cur.offset(dx, dy, dz);
+                        if (connected.contains(np)) continue;
+                        if (false) { // CLOAKING SHIELD DISABLED
+                            connected.add(np);
+                            queue.add(np);
+                        }
+                    }
+                }
+            }
+        }
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+        for (BlockPos p : connected) {
+            if (p.getX() < minX) minX = p.getX();
+            if (p.getY() < minY) minY = p.getY();
+            if (p.getZ() < minZ) minZ = p.getZ();
+            if (p.getX() > maxX) maxX = p.getX();
+            if (p.getY() > maxY) maxY = p.getY();
+            if (p.getZ() > maxZ) maxZ = p.getZ();
+        }
+        int dx = maxX - minX + 1;
+        int dy = maxY - minY + 1;
+        int dz = maxZ - minZ + 1;
+        if (dx != dy || dy != dz || dx < 1 || dx > 5) {
+            setSingleBlock(level, pos);
+            return;
+        }
+        int size = dx;
+        int expected = size * size * size;
+        if (connected.size() != expected) {
+            setSingleBlock(level, pos);
+            return;
+        }
+        if (size >= 2) {
+            Component msg = Component.literal("\u00A7b[404] Cloaking multiblock assembled!");
+            for (var player : level.players()) {
+                if (player.blockPosition().distSqr(new BlockPos(minX, minY, minZ)) < 25 * 25) {
+                    player.displayClientMessage(msg, true);
+                }
+            }
+        }
+        BlockPos ctrlPos = new BlockPos(minX, minY, minZ);
+        double multiblockRadius = BASE_RADIUS * (1 << (size - 1));
+        for (BlockPos bp : connected) {
+            if (level.getBlockEntity(bp) instanceof CloakingShieldBlockEntity be) {
+                be.multiblockSize = size;
+                be.isController = bp.equals(ctrlPos);
+                be.controllerPos = ctrlPos;
+                if (be.isController) {
+                    be.shieldCenterX = ctrlPos.getX() + size / 2.0;
+                    be.shieldCenterY = ctrlPos.getY() + size / 2.0;
+                    be.shieldCenterZ = ctrlPos.getZ() + size / 2.0;
+                }
+                be.radiusX = multiblockRadius;
+                be.radiusY = multiblockRadius;
+                be.radiusZ = multiblockRadius;
+                be.setChanged();
+                level.sendBlockUpdated(bp, level.getBlockState(bp), level.getBlockState(bp), 3);
+            }
+        }
+    }
+
+    private static void setSingleBlock(Level level, BlockPos pos) {
+        if (level.getBlockEntity(pos) instanceof CloakingShieldBlockEntity be) {
+            be.multiblockSize = 1;
+            be.isController = true;
+            be.controllerPos = pos;
+            be.shieldCenterX = pos.getX() + 0.5;
+            be.shieldCenterY = pos.getY() + 0.5;
+            be.shieldCenterZ = pos.getZ() + 0.5;
+            be.radiusX = BASE_RADIUS;
+            be.radiusY = BASE_RADIUS;
+            be.radiusZ = BASE_RADIUS;
+            be.setChanged();
+            level.sendBlockUpdated(pos, level.getBlockState(pos), level.getBlockState(pos), 3);
+        }
+    }
+}

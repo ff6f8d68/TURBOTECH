@@ -1,0 +1,6 @@
+{
+  "variants": {
+    "powered=false": { "model": "turbotech:block/cloaking_shield_invisible" },
+    "powered=true": { "model": "turbotech:block/cloaking_shield_invisible" }
+  }
+}

@@ -1,0 +1,163 @@
+package mods.hexagon.thrusted;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+import org.joml.Vector3f;
+
+/**
+ * Renders cloaking shield spheres at the AFTER_SKY stage (before chunks)
+ * so the opaque sphere writes to the depth buffer and occludes all blocks behind it.
+ */
+public class CloakingShieldRenderHandler {
+
+    private static final int SCAN_RANGE_CHUNKS = 6;
+
+    public static void onRenderLevelStage(RenderLevelStageEvent event) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_SKY) return;
+
+        Minecraft mc = Minecraft.getInstance();
+        Level level = mc.level;
+        if (level == null) return;
+
+        Vec3 cameraPos = mc.gameRenderer.getMainCamera().getPosition();
+        PoseStack poseStack = event.getPoseStack();
+        MultiBufferSource.BufferSource bufferSource = mc.renderBuffers().bufferSource();
+
+        int camChunkX = ((int) Math.floor(cameraPos.x)) >> 4;
+        int camChunkZ = ((int) Math.floor(cameraPos.z)) >> 4;
+
+        for (int dx = -SCAN_RANGE_CHUNKS; dx <= SCAN_RANGE_CHUNKS; dx++) {
+            for (int dz = -SCAN_RANGE_CHUNKS; dz <= SCAN_RANGE_CHUNKS; dz++) {
+                int cx = camChunkX + dx;
+                int cz = camChunkZ + dz;
+                if (!level.hasChunk(cx, cz)) continue;
+                LevelChunk chunk = level.getChunk(cx, cz);
+                for (var entry : chunk.getBlockEntities().entrySet()) {
+                    if (!(entry.getValue() instanceof CloakingShieldBlockEntity be)) continue;
+                    if (!be.isController()) continue;
+                    float alpha = be.getCloakAlpha();
+                    float bootup = be.getBootupProgress();
+                    if (alpha < 0.01f || bootup < 0.01f) continue;
+
+                    // Skip if camera is inside the shield
+                    if (be.isPositionInsideShield(cameraPos, -1.0)) continue;
+
+                    renderCloakSphere(poseStack, bufferSource, be, cameraPos, alpha, bootup, event.getPartialTick().getGameTimeDeltaPartialTick(true));
+                }
+            }
+        }
+    }
+
+    private static void renderCloakSphere(PoseStack poseStack, MultiBufferSource.BufferSource bufferSource,
+                                           CloakingShieldBlockEntity be, Vec3 cameraPos,
+                                           float alpha, float bootup, float partialTick) {
+        double rx = be.getRadiusX();
+        double ry = be.getRadiusY();
+        double rz = be.getRadiusZ();
+        var mesh = ThrustedIcosphere.getMesh(be.getSubdivLevel());
+
+        poseStack.pushPose();
+        poseStack.setIdentity();
+
+        // Translate relative to camera
+        double ox = be.getShieldCenterX() - cameraPos.x;
+        double oy = be.getShieldCenterY() - cameraPos.y;
+        double oz = be.getShieldCenterZ() - cameraPos.z;
+        poseStack.translate(ox, oy, oz);
+
+        // Scale to ellipsoid radii
+        poseStack.scale((float) rx, (float) ry, (float) rz);
+
+        int activeFaces = (int) (bootup * mesh.faces.length);
+        if (activeFaces < 1) {
+            poseStack.popPose();
+            return;
+        }
+
+        long gameTime = be.getLevel() != null ? be.getLevel().getGameTime() : 0;
+        float time = (gameTime + partialTick) * 0.02f;
+
+        // Opaque dark void shell — occludes everything behind it
+        VertexConsumer shellBuffer = bufferSource.getBuffer(ThrustedRenderTypes.CLOAK_SHELL);
+        renderShellFaces(shellBuffer, poseStack, mesh, activeFaces, time);
+        // Flush shell immediately so it's drawn before chunk geometry
+        bufferSource.endBatch(ThrustedRenderTypes.CLOAK_SHELL);
+
+        // Scan lines on top of the shell
+        VertexConsumer scanBuffer = bufferSource.getBuffer(ThrustedRenderTypes.CLOAK_SCAN);
+        renderScanLines(scanBuffer, poseStack, mesh, activeFaces, time);
+
+        poseStack.popPose();
+    }
+
+    private static void renderShellFaces(VertexConsumer buffer, PoseStack poseStack,
+                                          ThrustedIcosphere.MeshData mesh, int activeFaces, float time) {
+        float[] verts = mesh.verts;
+        int[][] faces = mesh.faces;
+
+        for (int fi = 0; fi < activeFaces; fi++) {
+            int[] face = faces[fi];
+            Vector3f v0 = getVertex(verts, face[0]);
+            Vector3f v1 = getVertex(verts, face[1]);
+            Vector3f v2 = getVertex(verts, face[2]);
+
+            float cy = (v0.y + v1.y + v2.y) / 3f;
+            float scanLine = (float) (Math.sin(cy * 40.0 + time * 3.0) * 0.5 + 0.5);
+
+            // Dark void shell with visible scan band variation
+            int base = 8 + (int)(scanLine * 8);
+            int r = base;
+            int g = base + 4;
+            int b = base + 20;
+
+            addTriangle(buffer, poseStack, v0, v1, v2, r, g, b, 255);
+        }
+    }
+
+    private static void renderScanLines(VertexConsumer buffer, PoseStack poseStack,
+                                         ThrustedIcosphere.MeshData mesh, int activeFaces, float time) {
+        float[] verts = mesh.verts;
+        int[][] faces = mesh.faces;
+
+        for (int fi = 0; fi < activeFaces; fi++) {
+            int[] face = faces[fi];
+            Vector3f v0 = getVertex(verts, face[0]);
+            Vector3f v1 = getVertex(verts, face[1]);
+            Vector3f v2 = getVertex(verts, face[2]);
+
+            float cy = (v0.y + v1.y + v2.y) / 3f;
+
+            // Bright scan bands moving vertically
+            float scanPhase = cy * 30.0f + time * 4.0f;
+            float band = (float) (Math.pow(Math.max(0, Math.sin(scanPhase)), 6.0));
+            if (band < 0.05f) continue;
+
+            // Cyan-ish glow for scan lines
+            int r = (int)(band * 30);
+            int g = (int)(band * 80);
+            int b = (int)(band * 140);
+            int a = (int)(band * 160);
+
+            addTriangle(buffer, poseStack, v0, v1, v2, r, g, b, a);
+        }
+    }
+
+    private static Vector3f getVertex(float[] verts, int index) {
+        return new Vector3f(verts[index * 3], verts[index * 3 + 1], verts[index * 3 + 2]);
+    }
+
+    private static void addTriangle(VertexConsumer buffer, PoseStack poseStack,
+                                     Vector3f v0, Vector3f v1, Vector3f v2,
+                                     int r, int g, int b, int a) {
+        var pose = poseStack.last();
+        buffer.addVertex(pose.pose(), v0.x, v0.y, v0.z).setColor(r, g, b, a);
+        buffer.addVertex(pose.pose(), v1.x, v1.y, v1.z).setColor(r, g, b, a);
+        buffer.addVertex(pose.pose(), v2.x, v2.y, v2.z).setColor(r, g, b, a);
+    }
+}

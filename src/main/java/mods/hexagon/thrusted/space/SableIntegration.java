@@ -3,7 +3,6 @@ package mods.hexagon.thrusted.space;
 import com.mojang.logging.LogUtils;
 import dev.ryanhcode.sable.api.physics.handle.RigidBodyHandle;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
-import mods.hexagon.thrusted.space.dimension.PlanetDimensionManager;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
@@ -14,7 +13,7 @@ public class SableIntegration {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public static boolean isSpaceEnvironment(Entity entity) {
-        return PlanetDimensionManager.isSpaceDimension(entity.level());
+        return isSpaceEnvironment(entity.level());
     }
 
     public static void applySpacePhysics(Entity entity) {
@@ -60,13 +59,13 @@ public class SableIntegration {
         if (!isSpaceEnvironment(level)) return;
         double mass = subLevel.getMassTracker().getMass();
         if (mass <= 0) return;
-        // Counteract gravity: impulse = mass * g * scale * dt
         double impulse = mass * 0.049 * dt;
         body.applyLinearImpulse(new Vector3d(0, impulse, 0));
     }
 
     public static boolean isSpaceEnvironment(Level level) {
-        return PlanetDimensionManager.isSpaceDimension(level);
+        var key = level.dimension();
+        return SpaceDimensions.isOrbitDimension(key) || SpaceDimensions.isPlanetDimension(key);
     }
 
     public static void handleShipMovement(Entity entity, Vec3 thrust) {

@@ -1,0 +1,40 @@
+package mods.hexagon.thrusted;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
+import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
+
+/**
+ * Minimal BER for cloaking shield. The actual sphere rendering is done by
+ * CloakingShieldRenderHandler at the AFTER_SKY stage (before chunks) for
+ * proper depth occlusion. This BER only provides the render bounding box
+ * and off-screen rendering flag.
+ */
+public class CloakingShieldBlockEntityRenderer implements BlockEntityRenderer<CloakingShieldBlockEntity> {
+
+    public CloakingShieldBlockEntityRenderer(BlockEntityRendererProvider.Context context) {}
+
+    @Override
+    public boolean shouldRenderOffScreen(CloakingShieldBlockEntity blockEntity) {
+        return true;
+    }
+
+    @Override
+    public boolean shouldRender(CloakingShieldBlockEntity blockEntity, Vec3 cameraPos) {
+        return false; // Don't render in BER pass — event handler does it
+    }
+
+    @Override
+    public AABB getRenderBoundingBox(CloakingShieldBlockEntity blockEntity) {
+        return blockEntity.getRenderBoundingBox();
+    }
+
+    @Override
+    public void render(CloakingShieldBlockEntity blockEntity, float partialTick, PoseStack poseStack,
+                       MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
+        // No-op: all rendering done by CloakingShieldRenderHandler at AFTER_SKY stage
+    }
+}

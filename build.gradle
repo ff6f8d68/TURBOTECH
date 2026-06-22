@@ -200,6 +200,9 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
                              mod_authors            : mod_authors,
                              mod_description        : mod_description]
     inputs.properties replaceProperties
+
+    filteringCharset = 'UTF-8'
+
     expand replaceProperties
     from "src/main/templates"
     into "build/generated/sources/modMetadata"
@@ -262,3 +265,6 @@ tasks.register('inspectVertexFormat') {
     }
 }
 
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}

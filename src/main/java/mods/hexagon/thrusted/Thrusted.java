@@ -1,21 +1,17 @@
 package mods.hexagon.thrusted;
 
 import com.mojang.logging.LogUtils;
-// SPACE DISABLED - lag issues
-//import mods.hexagon.thrusted.space.OrbitSimulation;
-//import mods.hexagon.thrusted.space.SpaceCommands;
-//import mods.hexagon.thrusted.space.SpaceEngine;
-//import mods.hexagon.thrusted.space.SpaceTransitionHandler;
-//import mods.hexagon.thrusted.space.SableIntegration;
-//import mods.hexagon.thrusted.space.AeronauticsIntegration;
-//import mods.hexagon.thrusted.space.client.SpaceRenderHandler;
-//import mods.hexagon.thrusted.space.client.SpaceScannerHud;
-//import mods.hexagon.thrusted.space.dimension.PlanetDimensionManager;
-//import mods.hexagon.thrusted.space.dimension.SpaceDimension;
+import mods.hexagon.thrusted.block.*;
+import mods.hexagon.thrusted.blockentity.*;
+import mods.hexagon.thrusted.client.ShieldColorScreen;
+import mods.hexagon.thrusted.client.TurbofanSmokeParticle;
+import mods.hexagon.thrusted.client.render.*;
+import mods.hexagon.thrusted.item.ThrusterBlockItem;
+import mods.hexagon.thrusted.menu.ShieldColorMenu;
+import mods.hexagon.thrusted.network.FriendlyNamePayload;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
@@ -30,8 +26,6 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
-import net.neoforged.neoforge.event.RegisterCommandsEvent;
-import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -119,8 +113,6 @@ public class Thrusted {
         output.accept(SHIELD_GENERATOR_BLOCK_ITEM.get());
     }).build());
 
-
-
     public Thrusted(IEventBus modEventBus, ModContainer modContainer) {
         BLOCKS.register(modEventBus);
         ITEMS.register(modEventBus);
@@ -129,8 +121,6 @@ public class Thrusted {
         PARTICLE_TYPES.register(modEventBus);
         MENUS.register(modEventBus);
         SOUND_EVENTS.register(modEventBus);
-        // SPACE DISABLED - lag issues
-        // SpaceDimension.DIMENSION_TYPES.register(modEventBus);
 
         modContainer.registerConfig(net.neoforged.fml.config.ModConfig.Type.COMMON, Config.SPEC);
 
@@ -147,56 +137,16 @@ public class Thrusted {
     @EventBusSubscriber(modid = MODID)
     public static class GameEvents {
         @SubscribeEvent
-        public static void onPlayerTick(PlayerTickEvent.Post event) {
-            // SPACE DISABLED - lag issues
-//            if (event.getEntity() instanceof ServerPlayer player) {
-//                SpaceEngine.getInstance().update(player, 0.05f);
-//                SpaceTransitionHandler.checkSpaceTransition(player);
-//                if (PlanetDimensionManager.isSpaceDimension(player.level())) {
-//                    player.setNoGravity(true);
-//                    player.fallDistance = 0;
-//                    SableIntegration.applySpacePhysics(player);
-//                    AeronauticsIntegration.applySpacePhysics(player);
-//                    if (player.getVehicle() != null) {
-//                        AeronauticsIntegration.applySpacePhysics(player.getVehicle());
-//                    }
-//                    SpaceEngine.getInstance().applySpaceMovement(player);
-//                } else {
-//                    player.setNoGravity(false);
-//                }
-//            }
+        public static void onServerAboutToStart(net.neoforged.neoforge.event.server.ServerAboutToStartEvent event) {
+            mods.hexagon.thrusted.space.CelestialBodyRegistry.init();
+            mods.hexagon.thrusted.space.SpaceDimensions.registerDimensions(event.getServer());
+            Thrusted.LOGGER.info("Thrusted space systems initialized");
         }
 
         @SubscribeEvent
-        public static void onRegisterCommands(RegisterCommandsEvent event) {
-            // SPACE DISABLED - lag issues
-            // SpaceCommands.register(event.getDispatcher());
+        public static void onRegisterCommands(net.neoforged.neoforge.event.RegisterCommandsEvent event) {
+            mods.hexagon.thrusted.command.SpaceCommand.register(event.getDispatcher());
         }
-
-        @SubscribeEvent
-        public static void onServerStarting(net.neoforged.neoforge.event.server.ServerStartingEvent event) {
-            // SPACE DISABLED - lag issues
-//            SpaceEngine.getInstance();
-//            PlanetDimensionManager.init(event.getServer());
-        }
-
-        @SubscribeEvent
-        public static void onServerStopping(net.neoforged.neoforge.event.server.ServerStoppingEvent event) {
-            // SPACE DISABLED - lag issues
-//            PlanetDimensionManager.saveAssignments(event.getServer());
-//            PlanetDimensionManager.cleanup();
-        }
-
-        @SubscribeEvent
-        public static void onChunkLoad(net.neoforged.neoforge.event.level.ChunkEvent.Load event) {
-            // SPACE DISABLED - lag issues
-//            if (event.getChunk() instanceof net.minecraft.world.level.chunk.LevelChunk lc) {
-//                if (event.getLevel() instanceof net.minecraft.world.level.Level level) {
-//                    PlanetDimensionManager.onChunkLoad(lc, level);
-//                }
-//            }
-        }
-
     }
 
     @EventBusSubscriber(modid = MODID, value = Dist.CLIENT)
@@ -208,14 +158,17 @@ public class Thrusted {
             net.minecraft.client.renderer.blockentity.BlockEntityRenderers.register(RAPTOR3_BLOCK_ENTITY.get(), Raptor3BlockEntityRenderer::new);
             net.minecraft.client.renderer.blockentity.BlockEntityRenderers.register(SHIELD_GENERATOR_BLOCK_ENTITY.get(), ShieldGeneratorBlockEntityRenderer::new);
         }
+
         @SubscribeEvent
         public static void registerMenuScreens(net.neoforged.neoforge.client.event.RegisterMenuScreensEvent event) {
             event.register(SHIELD_COLOR_MENU.get(), ShieldColorScreen::new);
         }
+
         @SubscribeEvent
         public static void registerParticleProviders(net.neoforged.neoforge.client.event.RegisterParticleProvidersEvent event) {
             event.registerSpriteSet(TURBOFAN_SMOKE.get(), TurbofanSmokeParticle.Provider::new);
         }
+
         @SubscribeEvent
         public static void onModelRegister(net.neoforged.neoforge.client.event.ModelEvent.RegisterAdditional event) {
             event.register(ShieldGeneratorBlockEntityRenderer.TOP_MODEL_MRL);
@@ -224,12 +177,29 @@ public class Thrusted {
             event.register(ShieldGeneratorBlockEntityRenderer.BASE_EMISSIVE_MODEL_MRL);
             event.register(TurbofanBlockEntityRenderer.FAN_MODEL_MRL);
         }
-        // SPACE DISABLED - lag issues
-//        @SubscribeEvent
-//        public static void onRegisterGuiOverlays(net.neoforged.neoforge.client.event.RegisterGuiLayersEvent event) {
-//            event.registerAboveAll(ResourceLocation.fromNamespaceAndPath(MODID, "space_scanner_hud"), SpaceScannerHud::onRenderGui);
-//        }
+
+        @SubscribeEvent
+        public static void registerDimensionEffects(net.neoforged.neoforge.client.event.RegisterDimensionSpecialEffectsEvent event) {
+            event.register(mods.hexagon.thrusted.space.render.SpaceSkyRenderer.SPACE_EFFECTS,
+                    new mods.hexagon.thrusted.space.render.SpaceSkyRenderer());
+        }
+
+        @SubscribeEvent
+        public static void registerOverlays(net.neoforged.neoforge.client.event.RegisterGuiLayersEvent event) {
+            event.registerAboveAll(
+                    net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "nav_hud"),
+                    mods.hexagon.thrusted.space.nav.NavHudOverlay.INSTANCE
+            );
+        }
+
+        @SubscribeEvent
+        public static void registerKeyMappings(net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent event) {
+            event.register(mods.hexagon.thrusted.space.nav.NavKeybind.NAV_KEY);
+        }
+
+        @SubscribeEvent
+        public static void onClientTick(net.neoforged.neoforge.client.event.ClientTickEvent.Post event) {
+            mods.hexagon.thrusted.space.nav.NavKeybind.handleTick();
+        }
     }
-
-
 }

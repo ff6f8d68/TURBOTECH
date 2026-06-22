@@ -5,5 +5,11 @@
   "block.turbotech.turbofan": "Turbofan",
   "block.turbotech.ion_thruster": "Ion Thruster",
   "block.turbotech.shield_generator": "Shield Generator",
-  "block.turbotech.raptor3": "spaceX raptor III engine"
+  "block.turbotech.cloaking_shield": "Cloaking Shield",
+  "block.turbotech.raptor3": "spaceX raptor III engine",
+  "key.turbotech.nav_map": "Open Navigator Map",
+  "key.categories.turbotech": "TURBOTECH",
+  "nav.turbotech.solar_system": "Solar System Navigator",
+  "nav.turbotech.zoom": "Zoom: %s",
+  "nav.turbotech.controls": "Drag to rotate | Scroll to zoom"
 }
