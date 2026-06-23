@@ -139,8 +139,11 @@ public class Thrusted {
         @SubscribeEvent
         public static void onServerAboutToStart(net.neoforged.neoforge.event.server.ServerAboutToStartEvent event) {
             mods.hexagon.thrusted.space.CelestialBodyRegistry.init();
+            mods.hexagon.thrusted.space.resource.SpaceResourceRegistry.init();
             mods.hexagon.thrusted.space.SpaceDimensions.registerDimensions(event.getServer());
-            Thrusted.LOGGER.info("Thrusted space systems initialized");
+            Thrusted.LOGGER.info("Thrusted space systems initialized - {} celestial bodies, {} resources",
+                    mods.hexagon.thrusted.space.CelestialBodyRegistry.getAll().size(),
+                    mods.hexagon.thrusted.space.resource.SpaceResourceRegistry.getAll().size());
         }
 
         @SubscribeEvent

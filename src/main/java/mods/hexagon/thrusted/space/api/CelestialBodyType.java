@@ -5,5 +5,8 @@ public enum CelestialBodyType {
     PLANET,
     MOON,
     GAS_GIANT,
-    DWARF_PLANET
+    DWARF_PLANET,
+    ASTEROID,
+    COMET,
+    SPACE_STATION
 }

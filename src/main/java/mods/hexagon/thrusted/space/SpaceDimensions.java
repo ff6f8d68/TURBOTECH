@@ -2,6 +2,7 @@ package mods.hexagon.thrusted.space;
 
 import dev.galacticraft.dynamicdimensions.api.DynamicDimensionRegistry;
 import mods.hexagon.thrusted.Thrusted;
+import mods.hexagon.thrusted.space.api.CelestialBodyType;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
@@ -21,10 +22,9 @@ import net.minecraft.world.level.biome.Biomes;
 import java.util.*;
 
 public class SpaceDimensions {
-    private static final List<String> PLANET_NAMES = List.of(
-            "mercury", "venus", "earth", "mars", "jupiter",
-            "saturn", "uranus", "neptune", "moon"
-    );
+
+    private static final List<String> LANDABLE_BODIES = new ArrayList<>();
+
     public static final int PLANET_HEIGHT = 380;
     public static final int ORBIT_RETURN_HEIGHT = -60;
 
@@ -72,6 +72,8 @@ public class SpaceDimensions {
     public static void registerDimensions(MinecraftServer server) {
         if (initialized) return;
 
+        buildLandableList();
+
         DynamicDimensionRegistry registry = DynamicDimensionRegistry.from(server);
         HolderGetter<DimensionType> dimTypes = server.registryAccess().lookupOrThrow(Registries.DIMENSION_TYPE);
 
@@ -85,25 +87,36 @@ public class SpaceDimensions {
         PLANET_TO_ORBIT.put(overworldKey, earthOrbitKey);
         ORBIT_TO_PLANET.put(earthOrbitKey, overworldKey);
         PLANET_KEYS.put("overworld", overworldKey);
+        ORBIT_DIMENSIONS.add(earthOrbitKey);
 
-        for (String name : PLANET_NAMES) {
-            ResourceKey<Level> planetKey = planetKey(name);
-            ResourceKey<Level> orbitKey = orbitKey(name);
+        for (String name : LANDABLE_BODIES) {
+            ResourceKey<Level> pKey = planetKey(name);
+            ResourceKey<Level> oKey = orbitKey(name);
 
-            PLANET_KEYS.put(name, planetKey);
-            PLANET_TO_ORBIT.put(planetKey, orbitKey);
-            ORBIT_TO_PLANET.put(orbitKey, planetKey);
-            ORBIT_DIMENSIONS.add(orbitKey);
+            PLANET_KEYS.put(name, pKey);
+            PLANET_TO_ORBIT.put(pKey, oKey);
+            ORBIT_TO_PLANET.put(oKey, pKey);
+            ORBIT_DIMENSIONS.add(oKey);
 
             ServerLevel level = registry.createDynamicDimension(
-                    orbitKey.location(),
+                    oKey.location(),
                     voidGen,
                     spaceDimType.value()
             );
-            Thrusted.LOGGER.info("Registered orbit dimension {}: level={}", orbitKey.location(), level);
+            Thrusted.LOGGER.info("Registered orbit dimension {}: level={}", oKey.location(), level);
         }
 
         initialized = true;
+        Thrusted.LOGGER.info("Space dimensions initialized: {} orbit dimensions registered", LANDABLE_BODIES.size());
+    }
+
+    private static void buildLandableList() {
+        LANDABLE_BODIES.clear();
+        for (CelestialBody body : CelestialBodyRegistry.getAll()) {
+            if (body.isLandable() && !body.getName().equals("Earth")) {
+                LANDABLE_BODIES.add(body.getName().toLowerCase(Locale.ROOT));
+            }
+        }
     }
 
     private static ChunkGenerator createVoidGenerator(MinecraftServer server) {
@@ -124,15 +137,15 @@ public class SpaceDimensions {
     }
 
     public static ServerLevel getOrCreateOrbit(ServerLevel planetLevel, String planetName) {
-        ResourceKey<Level> orbitKey = orbitKey(planetName);
-        ServerLevel orbitLevel = planetLevel.getServer().getLevel(orbitKey);
+        ResourceKey<Level> oKey = orbitKey(planetName);
+        ServerLevel orbitLevel = planetLevel.getServer().getLevel(oKey);
         if (orbitLevel == null) {
             var dimTypeLookup = planetLevel.getServer().registryAccess().lookupOrThrow(Registries.DIMENSION_TYPE);
             var spaceHolder = dimTypeLookup.get(ResourceKey.create(Registries.DIMENSION_TYPE, ORBIT_DIM_TYPE))
                     .orElseThrow(() -> new IllegalStateException("Missing space type"));
             var registry = DynamicDimensionRegistry.from(planetLevel.getServer());
             orbitLevel = registry.createDynamicDimension(
-                    orbitKey.location(),
+                    oKey.location(),
                     createVoidGenerator(planetLevel.getServer()),
                     spaceHolder.value()
             );
@@ -141,7 +154,11 @@ public class SpaceDimensions {
     }
 
     public static List<String> getPlanetNames() {
-        return PLANET_NAMES;
+        return Collections.unmodifiableList(LANDABLE_BODIES);
+    }
+
+    public static int getTotalOrbitDimensions() {
+        return ORBIT_DIMENSIONS.size();
     }
 
     private SpaceDimensions() {}
